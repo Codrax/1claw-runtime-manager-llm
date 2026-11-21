@@ -90,6 +90,7 @@ pub struct App {
     pub editor: Option<(ProcDef, bool)>,
     pub confirm_delete: Option<String>,
     pub audit: HashMap<String, Option<Vec<AuditEvent>>>,
+    pub audit_gen: HashMap<String, u64>,
     pub selected_snippet: Option<String>,
     pub snippets_dirty: Option<Instant>,
 
@@ -131,6 +132,7 @@ impl App {
             editor: None,
             confirm_delete: None,
             audit: HashMap::new(),
+            audit_gen: HashMap::new(),
             snippets_dirty: None,
             toast: None,
         };
@@ -244,7 +246,8 @@ impl App {
                     Err(e) => return Msg::Audit { id, res: Err(e) },
                 }
             }
-            all.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            all.sort_by(|a, b| b.created_at.cmp(&a.created_at).then_with(|| a.id.cmp(&b.id)));
+            all.dedup_by(|a, b| !a.id.is_empty() && a.id == b.id);
             Msg::Audit { id, res: Ok(all) }
         });
     }
@@ -492,7 +495,7 @@ impl App {
                             .response
                             .on_hover_text("Theme");
                         if self.client.is_some() {
-                            let b = egui::Button::new(RichText::new("●  1Claw connected").color(sc.on_success_container))
+                            let b = egui::Button::new(RichText::new("✔  1Claw connected").color(sc.on_success_container))
                                 .fill(sc.success_container)
                                 .corner_radius(CornerRadius::same(18))
                                 .min_size(egui::vec2(0.0, 34.0));

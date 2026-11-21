@@ -323,6 +323,8 @@ pub struct Runtime {
     pub temp_file: Option<PathBuf>,
     /// bumped on every start/stop so late results from a cancelled start get ignored
     pub generation: u64,
+    /// how many times it actually got going (with its secrets loaded)
+    pub runs: u64,
     stop_requested: Option<Instant>,
     force_sent: bool,
     restart_after_stop: bool,
@@ -344,6 +346,7 @@ impl Default for Runtime {
             mem: VecDeque::new(),
             temp_file: None,
             generation: 0,
+            runs: 0,
             stop_requested: None,
             force_sent: false,
             restart_after_stop: false,
@@ -383,6 +386,7 @@ impl Runtime {
         self.log(format!("started, pid {}", child.id()));
         self.child = Some(child);
         self.injected = injected;
+        self.runs += 1;
         self.started_at = Some(Instant::now());
         self.status = Status::Running;
         self.cpu.clear();

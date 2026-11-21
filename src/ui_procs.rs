@@ -95,7 +95,10 @@ pub fn log_view(ui: &mut egui::Ui, sc: &Scheme, logs: &SharedLogs, v: &mut LogVi
                 ui.label(RichText::new(if l.lines.is_empty() { "No output yet." } else { "Nothing matches." }).monospace().color(sc.outline));
                 return;
             }
-            let row_h = ui.text_style_height(&egui::TextStyle::Monospace) + 2.0;
+            let row_h = ui.text_style_height(&egui::TextStyle::Monospace) + 4.0;
+            // the theme's roomy interact size makes each horizontal row way too tall here
+            ui.spacing_mut().interact_size.y = row_h - 4.0;
+            ui.spacing_mut().item_spacing.y = 4.0;
             egui::ScrollArea::both()
                 .id_salt(("log", id))
                 .auto_shrink(false)
@@ -144,7 +147,7 @@ pub fn secret_rows(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, rows: &mut Vec
                     .margin(Margin::symmetric(10, 8))
                     .desired_width(150.0),
             );
-            ui.label(RichText::new("←").color(sc.outline));
+            ui.label(RichText::new("from").small().color(sc.outline));
             let vault_label = if r.vault.is_empty() { "vault".to_string() } else { r.vault.clone() };
             egui::ComboBox::from_id_salt((salt, "vault", i)).selected_text(vault_label).width(130.0).show_ui(ui, |ui| {
                 if app.vault_names.is_empty() {
@@ -161,7 +164,7 @@ pub fn secret_rows(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, rows: &mut Vec
                     .margin(Margin::symmetric(10, 8))
                     .desired_width(ui.available_width() - 80.0),
             );
-            let menu = ui.menu_button("▾", |ui| {
+            let menu = ui.menu_button("🔍", |ui| {
                 ui.set_max_height(280.0);
                 match app.paths.get(&r.vault) {
                     Some(list) if !list.is_empty() => {
@@ -185,7 +188,7 @@ pub fn secret_rows(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, rows: &mut Vec
             if menu.response.clicked() && !r.vault.is_empty() {
                 want_paths = Some(r.vault.clone());
             }
-            if ui.add(sc.text_button("✕", sc.on_surface_variant)).on_hover_text("Remove").clicked() {
+            if ui.add(sc.text_button("🗑", sc.on_surface_variant)).on_hover_text("Remove").clicked() {
                 remove = Some(i);
             }
         });
@@ -340,7 +343,7 @@ fn detail(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, id: &str) {
             ui.label(RichText::new(&def.command).monospace().color(sc.on_surface_variant));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.menu_button(RichText::new("⋮").size(18.0), |ui| {
+            ui.menu_button(RichText::new("…").size(18.0), |ui| {
                 if ui.button("✏  Edit").clicked() {
                     app.editor = Some((def.clone(), false));
                     ui.close_menu();
@@ -409,7 +412,10 @@ fn detail(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, id: &str) {
         &mut app.proc_tab,
         &[(ProcTab::Logs, "Logs"), (ProcTab::Performance, "Performance"), (ProcTab::Secrets, "Secrets"), (ProcTab::Activity, "Activity")],
     );
-    if app.proc_tab == ProcTab::Activity && (before != ProcTab::Activity || !app.audit.contains_key(id)) {
+    // refetch when the tab opens, or when the process restarted with (maybe) different secrets
+    let runs = app.rt[id].runs;
+    if app.proc_tab == ProcTab::Activity && (before != ProcTab::Activity || app.audit_gen.get(id) != Some(&runs)) {
+        app.audit_gen.insert(id.to_string(), runs);
         app.fetch_audit(id);
     }
     ui.add_space(10.0);
@@ -437,9 +443,12 @@ fn performance(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, id: &str) {
     let peak_cpu = rt.cpu.iter().map(|p| p[1]).fold(0.0, f64::max);
     let peak_mem = rt.mem.iter().map(|p| p[1]).fold(0.0, f64::max);
 
+    // window grows with the data (min a minute) and y follows the peak, otherwise
+    // a 3% process is just a flat line at the bottom of a 0-100 chart
+    let span = rt.cpu.front().map(|p| now - p[0]).unwrap_or(0.0).max(60.0);
     for (title, data, color, max, unit, peak) in [
-        ("CPU", rel(&rt.cpu), sc.primary, 100.0, "%", format!("peak {peak_cpu:.1}%")),
-        ("Memory", rel(&rt.mem), sc.tertiary, 64.0, " MB", format!("peak {}", fmt_bytes(peak_mem))),
+        ("CPU", rel(&rt.cpu), sc.primary, (peak_cpu * 1.3).max(5.0), "%", format!("peak {peak_cpu:.1}%")),
+        ("Memory", rel(&rt.mem), sc.tertiary, (peak_mem * 1.3).max(8.0), " MB", format!("peak {}", fmt_bytes(peak_mem))),
     ] {
         sc.card(1).corner_radius(CornerRadius::same(16)).inner_margin(Margin::same(12)).show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -455,7 +464,7 @@ fn performance(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, id: &str) {
                 .allow_boxed_zoom(false)
                 .allow_double_click_reset(false)
                 .show_background(false)
-                .include_x(-300.0)
+                .include_x(-span)
                 .include_x(0.0)
                 .include_y(0.0)
                 .include_y(max)
@@ -487,7 +496,7 @@ fn secrets_tab(app: &mut App, ui: &mut egui::Ui, sc: &Scheme, id: &str, def: &Pr
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&r.env).monospace().strong().color(sc.on_surface));
-                ui.label(RichText::new("←").color(sc.outline));
+                ui.label(RichText::new("from").small().color(sc.outline));
                 ui.label(RichText::new(format!("{} / {}", r.vault, r.path)).monospace().color(sc.on_surface_variant));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match inj {
                     Some(i) => {
@@ -563,7 +572,7 @@ fn editor(app: &mut App, ctx: &egui::Context, sc: &Scheme) {
     let title = if is_new { "New process" } else { "Edit process" };
     dialog(ctx, title, |ui| {
         ui.set_width(620.0);
-        egui::ScrollArea::vertical().max_height(ctx.screen_rect().height() - 220.0).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(ctx.screen_rect().height() - 170.0).show(ui, |ui| {
             field_label(ui, sc, "Name");
             ui.add(egui::TextEdit::singleline(&mut d.name).margin(Margin::symmetric(14, 10)).desired_width(f32::INFINITY));
             field_label(ui, sc, "Command");
@@ -604,7 +613,7 @@ fn editor(app: &mut App, ctx: &egui::Context, sc: &Scheme) {
                             .margin(Margin::symmetric(10, 8))
                             .desired_width(ui.available_width() - 40.0),
                     );
-                    if ui.add(sc.text_button("✕", sc.on_surface_variant)).clicked() {
+                    if ui.add(sc.text_button("🗑", sc.on_surface_variant)).clicked() {
                         remove = Some(i);
                     }
                 });
