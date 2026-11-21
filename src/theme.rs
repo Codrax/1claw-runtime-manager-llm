@@ -33,6 +33,9 @@ pub struct Scheme {
     pub tertiary: Color32,
     pub tertiary_container: Color32,
     pub on_tertiary_container: Color32,
+    pub success: Color32,
+    pub success_container: Color32,
+    pub on_success_container: Color32,
     pub error: Color32,
     pub on_error: Color32,
     pub error_container: Color32,
@@ -54,6 +57,7 @@ pub enum Role {
     Secondary,
     Tertiary,
     Error,
+    Success,
     Neutral,
 }
 
@@ -126,6 +130,7 @@ impl Scheme {
         let n = |t| tone(h, 0.008, t);
         let nv = |t| tone(h, 0.018, t);
         let e = |t| tone(0.47, 0.17, t); // red
+        let ok = |t| tone(2.55, 0.13, t); // green, for "running"
 
         if dark {
             Self {
@@ -139,6 +144,9 @@ impl Scheme {
                 tertiary: ter(80.0),
                 tertiary_container: ter(30.0),
                 on_tertiary_container: ter(90.0),
+                success: ok(80.0),
+                success_container: ok(30.0),
+                on_success_container: ok(90.0),
                 error: e(80.0),
                 on_error: e(20.0),
                 error_container: e(30.0),
@@ -165,6 +173,9 @@ impl Scheme {
                 tertiary: ter(40.0),
                 tertiary_container: ter(90.0),
                 on_tertiary_container: ter(10.0),
+                success: ok(45.0),
+                success_container: ok(90.0),
+                on_success_container: ok(10.0),
                 error: e(40.0),
                 on_error: e(100.0),
                 error_container: e(90.0),
@@ -188,6 +199,7 @@ impl Scheme {
             Role::Secondary => (self.secondary_container, self.on_secondary_container),
             Role::Tertiary => (self.tertiary_container, self.on_tertiary_container),
             Role::Error => (self.error_container, self.on_error_container),
+            Role::Success => (self.success_container, self.on_success_container),
             Role::Neutral => (self.surface_container_highest, self.on_surface_variant),
         }
     }
