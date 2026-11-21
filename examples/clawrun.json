@@ -1,0 +1,39 @@
+{
+  "processes": [
+    {
+      "id": "api",
+      "name": "api-server",
+      "command": "npm start",
+      "cwd": "~/code/shop-api",
+      "env": [{ "key": "PORT", "value": "8080" }],
+      "secrets": [
+        { "env": "STRIPE_KEY", "vault": "production", "path": "stripe/secret_key" },
+        { "env": "DATABASE_URL", "vault": "production", "path": "db/url" }
+      ],
+      "autorestart": true,
+      "restart_on_rotation": true,
+      "autostart": true
+    },
+    {
+      "id": "worker",
+      "name": "queue-worker",
+      "command": "python3 worker.py",
+      "cwd": "~/code/shop-api",
+      "env": [],
+      "secrets": [{ "env": "REDIS_URL", "vault": "production", "path": "redis/url" }],
+      "autorestart": true,
+      "restart_on_rotation": true,
+      "autostart": false
+    }
+  ],
+  "snippets": [
+    {
+      "id": "migrate",
+      "name": "db migrate",
+      "interpreter": "sh",
+      "cwd": "~/code/shop-api",
+      "code": "npx prisma migrate deploy\n",
+      "secrets": [{ "env": "DATABASE_URL", "vault": "production", "path": "db/url" }]
+    }
+  ]
+}
